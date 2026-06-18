@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Void AI Chat</title>
+  <script src="https://tailwindcss.com"></script>
+  <script src="https://jsdelivr.net"></script>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen flex flex-col justify-between font-sans">
+
+  <!-- Header -->
+  <header class="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/50 backdrop-blur sticky top-0 z-10">
+    <div class="flex items-center space-x-3">
+      <div class="w-3 h-3 bg-purple-500 rounded-full animate-pulse"></div>
+      <h1 class="text-xl font-bold tracking-wider text-purple-400">VOID_AI</h1>
+    </div>
+    <button id="clear-btn" class="text-xs text-zinc-400 hover:text-zinc-200 border border-zinc-800 hover:border-zinc-700 px-3 py-1.5 rounded-lg transition-colors">
+      Clear Memory
+    </button>
+  </header>
+
+  <!-- Chat Box Area -->
+  <main class="flex-1 overflow-y-auto p-4 w-full max-w-3xl mx-auto">
+    <div id="chat-box" class="space-y-4 min-h-full flex flex-col justify-end">
+      <!-- Welcome Message -->
+      <div class="bg-zinc-900 border border-zinc-800 p-4 rounded-xl max-w-[85%] self-start shadow-xl">
+        <p class="text-xs text-purple-400 font-semibold mb-1">VOID AI</p>
+        <div class="text-sm prose prose-invert">Greetings. I am Void. What brings you to the expanse?</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Input Area -->
+  <footer class="p-4 border-t border-zinc-800 bg-zinc-900/30 backdrop-blur sticky bottom-0">
+    <form id="chat-form" class="max-w-3xl mx-auto flex space-x-2">
+      <input type="text" id="user-input" placeholder="Speak to the void..." required autocomplete="off"
+        class="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-purple-500 transition-colors placeholder-zinc-500">
+      <button type="submit" id="submit-btn"
+        class="bg-purple-600 hover:bg-purple-700 transition-colors px-5 py-3 rounded-xl text-sm font-medium flex items-center justify-center min-w-[70px]">
+        Send
+      </button>
+    </form>
+  </footer>
+
+  <!-- Frontend Logic -->
+  <script>
+    const chatBox = document.getElementById('chat-box');
+    const chatForm = document.getElementById('chat-form');
+    const userInput = document.getElementById('user-input');
+    const submitBtn = document.getElementById('submit-btn');
+    const clearBtn = document.getElementById('clear-btn');
+
+    // Keep session history in memory array
+    let conversationHistory = [];
+
+    function appendMessage(sender, text, isUser) {
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `p-4 rounded-xl max-w-[85%] shadow-md transform transition-all duration-200 ${
+        isUser 
+          ? 'bg-purple-900/30 border border-purple-800/50 self-end text-zinc-100' 
+          : 'bg-zinc-900 border border-zinc-800 self-start text-zinc-200'
+      }`;
+      
+      const label = document.createElement('p');
+      label.className = `text-xs font-semibold mb-1.5 tracking-wider ${isUser ? 'text-purple-300' : 'text-purple-400'}`;
+      label.textContent = sender;
+
+      const messageContent = document.createElement('div');
+      messageContent.className = 'text-sm space-y-1 breaking-words';
+      
+      // Safely parse Markdown for responses
+      if (isUser) {
+        messageContent.textContent = text;
+      } else {
+        messageContent.innerHTML = marked.parse(text);
+      }
+
+      msgDiv.appendChild(label);
+      msgDiv.appendChild(messageContent);
+      chatBox.appendChild(msgDiv);
+      
+      // Smooth scroll execution
+      setTimeout(() => {
+        chatBox.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }, 50);
+    }
+
+    chatForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const prompt = userInput.value.trim();
+      if (!prompt) return;
+
+      // Update UI and record user message
+      appendMessage('YOU', prompt, true);
+      conversationHistory.push({ role: 'user', content: prompt });
+      userInput.value = '';
+      
+      // Loading State
+      userInput.disabled = true;
+      submitBtn.disabled = true;
+      submitBtn.textContent = '...';
+
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ history: conversationHistory })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.reply) {
+          appendMessage('VOID AI', data.reply, false);
+          conversationHistory.push({ role: 'assistant', content: data.reply });
+        } else {
+          appendMessage('SYSTEM ERROR', data.error || 'The void remains silent.', false);
+        }
+      } catch (error) {
+        appendMessage('SYSTEM ERROR', 'Unable to reach the edge of the void.', false);
+      } finally {
+        userInput.disabled = false;
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send';
+        userInput.focus();
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      conversationHistory = [];
+      // Wipe DOM down to only the welcome greeting block
+      while (chatBox.children.length > 1) {
+        chatBox.removeChild(chatBox.lastChild);
+      }
+    });
+  </script>
+</body>
+</html>
